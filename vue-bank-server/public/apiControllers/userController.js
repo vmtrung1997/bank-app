@@ -4,7 +4,7 @@ const ObjectId = require('mongoose').mongo.ObjectId;
 const md5 = require('md5');
 
 
-const User = require('../models/user');
+const User = require('../models/user'); 
 const ReToken = require('../models/token');
 var auth = require('../repos/authRepo');
 
@@ -24,38 +24,41 @@ router.post('/register', (req, res) =>{
 })
 
 router.post('/login',(req, res) => {
+    console.log(req.body)
     User.findOne({username: req.body.username, password: md5(req.body.password)},
          null, function(error, result){
             if (result){
                 var userEntity = result;
-                
                 var acToken = auth.generateAccessToken(userEntity);
                 var reToken = auth.generateRefreshToken();
-
                 auth.updateRefreshToken(result._id, reToken)
                 .then(() => {
                     res.statusCode = 201;
                     res.json({
-                        auth: true,
+                        status: 'success',
                         user: userEntity,
                         access_token : acToken,
                         refresh_token : reToken
                     })
-                }).catch(() => {
+                }).catch(err => {
                     res.statusCode = 500;
-                    res.end('View error in console log')
+                    res.json({
+                        status: 'fail',
+                        msg: err
+                    })
                 })
-            } else {
+            } else if (error){
+                console.log(error);
                 res.statusCode = 401;
                 res.json({
-                    auth: false
+                    status: 'fail',
+                    msg: error
                 })
             }
         })
 });
 
 router.post('/getaccess', (req, res) =>{
-
     var reToken = req.body.refresh_token;
     ReToken.findOne({token: reToken}, null, function(err, result){
         if(result){
