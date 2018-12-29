@@ -11,11 +11,12 @@ app.use(cors());
 
 var userCtrl = require('./public/apiControllers/userController')
 var logoutCtrl = require('./public/apiControllers/logoutController')
+var staffCtrl = require('./public/apiControllers/staffControllers')
 var verifyAccessToken = require('./public/repos/authRepo').verifyAccessToken;
 
 app.use('/api/user', userCtrl);
 app.use('/api/logout', verifyAccessToken, logoutCtrl);
-
+app.use('/api/staff', verifyAccessToken, staffCtrl);
 
 app.get('/', (req, res) => {
     res.json({

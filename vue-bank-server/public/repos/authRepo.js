@@ -3,20 +3,16 @@ var rndToken = require('rand-token');
 var moment = require('moment');
 
 const dbToken = require('../fn/db-userRefreshToken');
-
-const SECRET = 'ABCDEF';
-const AC_LIFETIME = 6000;
+const {SECRET, AC_LIFETIME} = require('../../config.js')
 
 exports.generateAccessToken = userEntity => {
     var payload = {
         user: userEntity,
         info: 'more info'
     }
-
     var token = jwt.sign(payload, SECRET, {
         expiresIn: AC_LIFETIME
     });
-
     return token;
 }
 
