@@ -2,38 +2,43 @@ const express = require('express');
 const router = express.Router();
 const ObjectId = require('mongoose').mongo.ObjectId;
 var nodemailer = require('nodemailer');
-var mailFormat = require('../fn/mailer')
+var sgTransport = require('nodemailer-sendgrid-transport');
+var mailFormat = require('../fn/mailer');
+var clientRepo = require('../repos/clientRepo')
 var generator = require('generate-serial-number');
-var
-var transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-        user: 'cppgroupcntt@gmail.com',
-        pass: '123789abc'
-    }
-});
 
-var moment = require('moment');
+var options = {
+    auth: {
+        api_user: 'vmtrung1997',
+        api_key: '123456Trung'
+    }
+}
+var transporter = nodemailer.createTransport(sgTransport(options));
+
+// var transporter = nodemailer.createTransport({
+//     service: 'gmail',
+//     auth: {
+//       user: 'cppgroupcntt@gmail.com',
+//       pass: '123789abc'
+//     }
+//   });
+
 var jwt = require('jsonwebtoken');
 
 const User = require('../models/user');
 const Account = require('../models/account');
 const Transaction = require('../models/transaction');
-const CodeOpt = require('../models/codeOpt');
-
+const CodeOTP = require('../models/codeOTP');
+const Contact = require('../models/contact');
 const { TRANFER_FEE } = require('../../config.js');
 
+// output: account list of user
 router.post('/account_list', (req, res) => {
     var token = req.headers['x-access-token'];
     var decode = jwt.decode(token);
     var idStaff = new ObjectId(decode.user._id)
     User.findOne({ _id: idStaff }, (err, result) => {
-        if (err) {
-            res.status(400).json({
-                status: 'fail',
-                msg: err
-            })
-        } else {
+        if (result) {
             if (result.role_id !== 'CLIENT') {
                 res.status(400).json({
                     status: 'fail',
@@ -41,7 +46,7 @@ router.post('/account_list', (req, res) => {
                 })
             }
             else {
-                Account.find({ userId: req.body._id }, (error, data) => {
+                Account.find({ userId: result._id }, (error, data) => {
                     if (data) {
                         res.status(200).json({
                             status: 'success',
@@ -55,21 +60,31 @@ router.post('/account_list', (req, res) => {
                     }
                 })
             }
+        } else {
+            res.status(400).json({
+                status: 'fail',
+                msg: err
+            })
         }
     })
 })
-
+// input: x-access-token, req.body
+// {
+//     accountId: String,
+//     detail: {
+//         type: String, 'RECIPIENT FEE' || 'PAYER FEE'
+//         accountTo: String,
+//         balance: Number,
+//         message: String
+//     }
+// }
+// output: request mail otp
 router.post('/transfer', (req, res) => {
     var token = req.headers['x-access-token'];
     var decode = jwt.decode(token);
     var idStaff = new ObjectId(decode.user._id)
     User.findOne({ _id: idStaff }, (err, result) => {
-        if (err) {
-            res.status(400).json({
-                status: 'fail',
-                msg: err
-            })
-        } else {
+        if (result) {
             if (result.role_id !== 'CLIENT') {
                 res.status(400).json({
                     status: 'fail',
@@ -78,23 +93,20 @@ router.post('/transfer', (req, res) => {
             }
             else {
                 var data = req.body;
-                var userId = new ObjectId(data.userId);
-                User.findOne({ _id: userId }, (error, data) => {
-                    if (data) {
-                        var code = generator.generate(6);
-                        var codeOpt = new CodeOpt({
-                            accountId: data.accountId,
-                            detail: data.detail,
-                            code: code
-                        })
-                        codeOpt.save().then(doc => {
-                            if (doc) {
-                                var mail = mailFormat(data.email, doc.accountId, doc.code);
+                Account.findOne({ accountId: data.accountId }, (error, account) => {
+                    if (account) {
+                        var _id = new ObjectId(account.userId);
+                        User.findOne({ _id: _id }, (_, user) => {
+                            if (user) {
+                                console.log(user);
+                                var code = generator.generate(6);
+                                var mail = mailFormat(user.username, account.accountId, code);
+                                console.log(mail)
                                 var mailOptions = {
-                                    from: 'no-reply@yourwebapplication.com',
-                                    to: data.email,
+                                    from: 'no-reply@bank-app.com',
+                                    to: user.email,
                                     subject: 'Verify transfer money',
-                                    text: mail
+                                    html: mail
                                 };
                                 transporter.sendMail(mailOptions, (errorMail) => {
                                     if (errorMail) {
@@ -103,43 +115,63 @@ router.post('/transfer', (req, res) => {
                                             msg: errorMail
                                         })
                                     } else {
-                                        res.status(200).json({
-                                            status: 'success',
-                                            msg: 'MAIL SENT'
+                                        var codeOpt = new CodeOTP({
+                                            accountId: account.accountId,
+                                            detail: data.detail,
+                                            code: code
+                                        })
+                                        codeOpt.save().then(doc => {
+                                            if (doc) {
+                                                res.status(200).json({
+                                                    status: 'success',
+                                                    msg: 'MAIL SENT'
+                                                })
+                                            } else {
+                                                res.status(500).json({
+                                                    status: 'fail',
+                                                    msg: error
+                                                })
+                                            }
                                         })
                                     }
                                 })
+
                             } else {
-                                res.status(500).json({
+                                res.status(400).json({
                                     status: 'fail',
-                                    msg: error
+                                    msg: 'User not found'
                                 })
                             }
                         })
                     } else {
                         res.status(400).json({
                             status: 'fail',
-                            msg: 'User not found'
+                            msg: 'Account not found'
                         })
                     }
 
                 })
             }
+        } else {
+            res.status(400).json({
+                status: 'fail',
+                msg: err
+            })
         }
     })
 })
-
+// input: 
+// {
+//     accountId: String,
+//     code: String
+// }
+// output: 'success' || 'fail'
 router.post('/submit_opt', (req, res) => {
     var token = req.headers['x-access-token'];
     var decode = jwt.decode(token);
     var idStaff = new ObjectId(decode.user._id)
     User.findOne({ _id: idStaff }, (err, result) => {
-        if (err) {
-            res.status(400).json({
-                status: 'fail',
-                msg: err
-            })
-        } else {
+        if (result) {
             if (result.role_id !== 'CLIENT') {
                 res.status(400).json({
                     status: 'fail',
@@ -148,136 +180,342 @@ router.post('/submit_opt', (req, res) => {
             }
             else {
                 // Find code opt
-                CodeOpt.findOne({ accountId: req.body.accountId, code: req.body.code }, (errorCode, dataCode) => {
-                    if (errorCode) {
-                        res.code(400).json({
-                            status: 'fail',
-                            msg: 'INVALID CODE'
-                        })
-                    } else {
+                CodeOTP.findOne({ accountId: req.body.accountId, code: req.body.code }, (_, dataCode) => {
+                    if (dataCode) {
                         var detail = dataCode.detail;
-                        if (detail.balance < TRANFER_FEE){
+                        if (detail.balance < TRANFER_FEE) {
+                            console.log('Transfer money must be greater than transfer fee')
                             res.status(400).json({
                                 status: 'fail',
                                 msg: 'Transfer money must be greater than transfer fee'
                             })
-                        }
-                        Account.findOne({ accountId: detail.accountId }, (error, data) => {
-                            if (data) {
-                                if (data.balance < detail.balance) {
-                                    res.code(400).json({
-                                        status: 'fail',
-                                        msg: 'Account balance can not afford to make a deposit'
-                                    })
-                                } else {
-                                    var transferType = detail.type;
-                                    switch (transferType) {
-                                        // Case recipent pay fee
-                                        case 'RECIPIENT FEE':
-                                            var accountObj = Account.findOne({ accountId: detail.accountTo })
-                                            if (accountObj.balance < TRANFER_FEE) {
-                                                res.status(400).json({
-                                                    status: 'fail',
-                                                    msg: 'Recipient balance must be greater than transfer fee (1000 Dong)'
-                                                })
-                                            }
-                                            else {
-                                                var balanceAccountFrom = data.balance - detail.balance;
-                                                Account.updateOne({ accountId: detail.accountFrom }, {
-                                                    $set: {
-                                                        'balance': balanceAccountFrom
-                                                    }
-                                                }, (errorAccountFromUpdate) => {
-                                                    if (errorAccountFromUpdate) {
-                                                        res.status(400).json({
-                                                            status: 'fail',
-                                                            msg: errorAccountFromUpdate
-                                                        })
-                                                    } else {
-                                                        var balanceAccountTo = accountObj.balance - TRANFER_FEE
-                                                        Account.updateOne({ accountId: detail.accountTo }, {
-                                                            $set: {
-                                                                'balance': balanceAccountTo
-                                                            }
-                                                        }, (errorAccountToUpdate) => {
-                                                            if (errorAccountToUpdate) {
-                                                                res.status(400).json({
-                                                                    tatus: 'fail',
-                                                                    msg: errorAccountToUpdate
-                                                                })
-                                                            } else {
-                                                                var trans = new Transaction({ ...detail, time: Date.now })
-                                                                trans.save().then(value => {
-                                                                    res.status(200).json({
-                                                                        status: 'success',
-                                                                        data: value
-                                                                    })
-                                                                })
-                                                            }
-                                                        })
-                                                    }
-                                                })
-                                            };
-                                            break;
-                                        case 'PAYER FEE':
-                                            if (data.balance < TRANFER_FEE + detail.balance) {
-                                                res.status(400).json({
-                                                    status: 'fail',
-                                                    msg: 'Account balance can not afford to make a deposit'
-                                                })
-                                            } else {
-                                                var balanceAccountFrom = data.balance - detail.balance - TRANFER_FEE;
-                                                Account.updateOne({ accountId: detail.accountFrom }, {
-                                                    $set: {
-                                                        'balance': balanceAccountFrom
-                                                    }
-                                                }, (errorAccountFromUpdate) => {
-                                                    if (errorAccountFromUpdate) {
-                                                        res.status(400).json({
-                                                            status: 'fail',
-                                                            msg: errorAccountFromUpdate
-                                                        })
-                                                    } else {
-                                                        var trans = new Transaction({ ...detail, time: Date.now })
-                                                        trans.save().then(value => {
-                                                            res.status(200).json({
-                                                                status: 'success',
-                                                                data: value
+                        } else {
+                            Account.findOne({ accountId: dataCode.accountId }, (error, account) => {
+                                if (account) {
+                                    if (account.balance < detail.balance) {
+                                        res.status(400).json({
+                                            status: 'fail',
+                                            msg: 'Account balance can not afford to make a deposit'
+                                        })
+                                    } else {
+                                        var transferType = detail.type;
+                                        switch (transferType) {
+                                            // Case recipent pay fee
+                                            case 'RECIPIENT FEE':
+                                                Account.findOne({ accountId: detail.accountTo }, (errAccountTo, accountTo) => {
+                                                    if (accountTo){
+                                                        if (accountTo.balance  < TRANFER_FEE) {
+                                                            res.status(400).json({
+                                                                status: 'fail',
+                                                                msg: 'Recipient balance must be greater than transfer fee (1000 Dong)'
                                                             })
+                                                        }
+                                                        else {
+                                                            var balanceAccountFrom = accountTo.balance - detail.balance;
+                                                            Account.updateOne({ accountId: account.accountId }, {
+                                                                $set: {
+                                                                    'balance': balanceAccountFrom
+                                                                }
+                                                            }, (_, accountUpdate) => {
+                                                                console.log('update account from success')
+                                                                if (accountUpdate) {
+                                                                    var balanceAccountTo = accountTo.balance - TRANFER_FEE
+                                                                    Account.updateOne({ accountId: detail.accountTo }, {
+                                                                        $set: {
+                                                                            'balance': balanceAccountTo
+                                                                        }
+                                                                    }, (_,accountToUpdate) => {
+                                                                        console.log('update account to success')
+                                                                        if (accountToUpdate) {
+                                                                            var time = Date.now();
+                                                                            var trans = new Transaction({
+                                                                                userId: result.userId,
+                                                                                accountFrom: account.accountId,
+                                                                                accountTo: detail.accountTo,
+                                                                                balance: detail.balance,
+                                                                                message: detail.message,
+                                                                                type: detail.type,
+                                                                                time: time
+                                                                            })
+                                                                            trans.save().then(value => {
+                                                                                console.log('transaction save success')
+                                                                                CodeOTP.deleteOne({ accountId: account.accountId, code: dataCode.code }, (errorDelete) => {
+                                                                                    if (errorDelete) {
+                                                                                        res.status(400).json({
+                                                                                            status: 'fail',
+                                                                                            msg: errorDelete
+                                                                                        })
+                                                                                    } else {
+                                                                                        console.log('delete success')
+                                                                                        res.status(200).json({
+                                                                                            status: 'success',
+                                                                                            data: value
+                                                                                        })
+                                                                                    }
+                                                                                })
+                                                                            }).catch(errTrans => {
+                                                                                res.status(400).json({
+                                                                                    status: 'fail',
+                                                                                    msg: errTrans
+                                                                                })
+                                                                            })
+                                                                        } else {
+                                                                            res.status(400).json({
+                                                                                tatus: 'fail',
+                                                                                msg: errorAccountToUpdate
+                                                                            })                                                                            
+                                                                        }
+                                                                    })
+                                                                } else {
+                                                                    res.status(400).json({
+                                                                        status: 'fail',
+                                                                        msg: errorAccountFromUpdate
+                                                                    })                                                                    
+                                                                }
+                                                            })
+                                                        };
+                                                    } else {
+                                                        res.status(400).json({
+                                                            status: 'fail',
+                                                            msg: errAccountTo
                                                         })
                                                     }
                                                 })
-                                            };
-                                            break;
+                                                break;
+                                            case 'PAYER FEE':
+                                                if (account.balance < TRANFER_FEE + detail.balance) {
+                                                    res.status(400).json({
+                                                        status: 'fail',
+                                                        msg: 'Account balance can not afford to make a deposit'
+                                                    })
+                                                } else {
+                                                    var balanceAccountFrom = account.balance - detail.balance - TRANFER_FEE;
+                                                    Account.updateOne({ accountId: account.accountId }, {
+                                                        $set: {
+                                                            'balance': balanceAccountFrom
+                                                        }
+                                                    }, (_, accountUpdate) => {
+                                                        if (accountUpdate) {
+                                                            Account.findOne({ accountId: detail.accountto }, (_, accountToFind) => {
+                                                                if (accountToFind) {
+                                                                    var balanceAccountTo = accountToFind.balance + detail.balance;
+                                                                    Account.updateOne({ accountId: detail.accountTo }, {
+                                                                        $set: {
+                                                                            'balance': balanceAccountTo
+                                                                        }
+                                                                    }, (_, accountToUpdate) => {
+                                                                        if (accountToUpdate) {
+                                                                            var time = Date.now();
+                                                                            var trans = new Transaction({
+                                                                                userId: result.userId,
+                                                                                accountFrom: account.accountId,
+                                                                                accountTo: detail.accountTo,
+                                                                                balance: detail.balance,
+                                                                                message: detail.message,
+                                                                                type: detail.type,
+                                                                                time: time
+                                                                            })
+                                                                            trans.save().then(value => {
+                                                                                CodeOTP.deleteOne({ accountId: account.accountId, code: dataCode.code }, (errorDelete) => {
+                                                                                    if (errorDelete) {
+                                                                                        res.status(400).json({
+                                                                                            status: 'fail',
+                                                                                            msg: errorDelete
+                                                                                        })
+                                                                                    } else {
+                                                                                        res.status(200).json({
+                                                                                            status: 'success',
+                                                                                            data: value
+                                                                                        })
+                                                                                    }
+                                                                                })
+                                                                            }).catch(errTrans => {
+                                                                                res.status(400).json({
+                                                                                    status: 'fail',
+                                                                                    msg: errTrans
+                                                                                })
+                                                                            })
+                                                                        } else {
+                                                                            res.status(400).json({
+                                                                                status: 'fail',
+                                                                                msg: error
+                                                                            })
+                                                                        }
+                                                                    })
+                                                                } else {
+                                                                    res.status(400).json({
+                                                                        status: 'fail',
+                                                                        msg: ''
+                                                                    })
+                                                                }
+                                                            })
+                                                        } else {
+                                                            res.status(400).json({
+                                                                status: 'fail',
+                                                                msg: errorAccountFromUpdate
+                                                            })
+                                                        }
+
+                                                    })
+                                                };
+                                                break;
+                                        }
                                     }
+                                    var transferType = detail.type;
+                                } else {
+                                    res.status(400).json({
+                                        status: 'fail',
+                                        msg: error
+                                    })
                                 }
-                                var transferType = detail.type;
-                            } else {
-                                res.status(400).json({
-                                    status: 'fail',
-                                    msg: error
-                                })
-                            }
+                            })
+                        }
+
+                    } else {
+                        res.code(400).json({
+                            status: 'fail',
+                            msg: 'INVALID CODE'
                         })
                     }
                 })
 
             }
+        } else {
+            res.status(400).json({
+                status: 'fail',
+                msg: err
+            })
         }
     })
 })
-
+// create contact
+// input: 
+// {
+//     userId,
+//     accountId,
+//     name,
+// }
+router.post('/create_contact', (req, res) => {
+    var token = req.headers['x-access-token'];
+    var decode = jwt.decode(token);
+    var idStaff = new ObjectId(decode.user._id)
+    User.findOne({ _id: idStaff }, (err, result) => {
+        if (result) {
+            if (result.role_id !== 'CLIENT') {
+                res.status(400).json({
+                    status: 'fail',
+                    msg: 'Invalid role id'
+                })
+            }
+            else {
+                var name = req.body.name;
+                if (name == '') {
+                    Account.findOne({ accountId: req.body.accountNumber }, (errorAcc, account) => {
+                        if (errorAcc){
+                            
+                        }
+                        if (account) {
+                            var id = new ObjectId(account.userId);
+                            User.findOne({_id: id},(errUser, user) =>{
+                                if (user){
+                                    var contact = new Contact({
+                                        userId: result._id,
+                                        accountNumber: req.body.accountNumber,
+                                        name: user.fullname,
+                                    });
+                                    contact.save().then(contact => {
+                                        res.status(200).json({
+                                            status: 'success',
+                                            value: contact
+                                        })
+                                    }).catch(errContact => {
+                                        res.status(400).json({
+                                            status: 'fail',
+                                            msg: errContact
+                                        })
+                                    })
+                                } else {
+                                    res.status(400).json({
+                                        status: 'fail',
+                                        msg: errUser
+                                    })
+                                }
+                            })
+                        } else {
+                            res.status(400).json({
+                                status: 'fail',
+                                msg: errorAcc
+                            })                            
+                        }
+                    })
+                } else {
+                    var contact = new Contact({
+                        userId: result._id,
+                        accountNumber: req.body.accountNumber,
+                        name: req.body.name,
+                    });
+                    contact.save().then(contact => {
+                        res.status(200).json({
+                            status: 'success',
+                            value: contact
+                        })
+                    }).catch(errContact => {
+                        res.status(400).json({
+                            status: 'fail',
+                            msg: errContact
+                        })
+                    })
+                }
+            }
+        } else {
+            res.status(400).json({
+                status: 'fail',
+                msg: err
+            })
+        }
+    })
+})
+// output: account list of user
+router.get('/contacts', (req, res) => {
+    var token = req.headers['x-access-token'];
+    var decode = jwt.decode(token);
+    var idStaff = new ObjectId(decode.user._id)
+    User.findOne({ _id: idStaff }, (err, result) => {
+        if (result) {
+            if (result.role_id !== 'CLIENT') {
+                res.status(400).json({
+                    status: 'fail',
+                    msg: 'Invalid role id'
+                })
+            }
+            else {
+                clientRepo.getContactList(result._id).then(values => {
+                    res.status(200).json({
+                        status: 'success',
+                        contactList: values
+                    })
+                }).catch(error => {
+                    res.status(500).json({
+                        status: 'fail',
+                        msg: error
+                    })
+                })
+            }
+        } else {
+            res.status(400).json({
+                status: 'fail',
+                msg: err
+            })
+        }
+    })
+})
+// get history transaction
 router.post('/transaction', (req, res) => {
     var token = req.headers['x-access-token'];
     var decode = jwt.decode(token);
     var idStaff = new ObjectId(decode.user._id)
     User.findOne({ _id: idStaff }, (err, result) => {
-        if (err) {
-            res.json({
-                status: 'fail',
-                msg: err
-            })
-        } else {
+        if (result) {
             if (result.role_id !== 'CLIENT') {
                 res.json({
                     status: 'fail',
@@ -299,8 +537,61 @@ router.post('/transaction', (req, res) => {
                     }
                 })
             }
+        } else {
+            res.json({
+                status: 'fail',
+                msg: err
+            })
         }
     })
 })
+
+// get client infomation
+router.get('/infomation', (req, res) => {
+    var token = req.headers['x-access-token'];
+    var decode = jwt.decode(token);
+    var idStaff = new ObjectId(decode.user._id)
+    User.findOne({ _id: idStaff }, (err, result) => {
+        if (result) {
+            if (result.role_id !== 'CLIENT') {
+                res.status(400).json({
+                    status: 'fail',
+                    msg: 'Invalid role id'
+                })
+            }
+            else {
+                clientRepo.getAccountList(result._id).then(accountList => {
+                    clientRepo.getTransactionList(result._id).then(transList => {
+                        clientRepo.getContactList(result._id).then(contactList => {
+                            res.status(200).json({
+                                status: 'success',
+                                value: {
+                                    accountList: accountList,
+                                    transList: transList,
+                                    contactList: contactList
+                                }
+                            })
+                        }).catch(contactErr => res.status(400).json({
+                            status: 'fail',
+                            msg: contactErr
+                        }))
+                    }).catch(transErr => res.status(400).json({
+                        status: 'fail',
+                        msg: transErr
+                    }))
+                }).catch(accountErr => res.status(400).json({
+                    status: 'fail',
+                    msg: accountErr
+                }))
+            }
+        } else {
+            res.json({
+                status: 'fail',
+                msg: err
+            })
+        }
+    })
+})
+
 
 module.exports = router

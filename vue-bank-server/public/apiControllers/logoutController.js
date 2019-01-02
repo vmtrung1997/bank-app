@@ -3,8 +3,9 @@ const ReToken = require('../models/token')
 var router = express.Router();
 
 router.get('/', (req, res) => {
-	ReToken.findOneAndDelete({token: req.headers['x-refresh-token']}, function(err, result){
+	ReToken.findOneAndDelete({token: req.headers['x-refresh-token']}, function(err){
         if (err){
+            console.log(err);
             res.json({
                 status: 'fail',
                 msg: err
