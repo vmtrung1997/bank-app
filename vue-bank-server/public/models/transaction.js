@@ -7,6 +7,7 @@ var transactionSchema = new Schema({
     accountTo: String,
     balance: Number,
     time: Date,
+    userId: String,
     message: String
 });
 const model = mongoose.model('Transaction', transactionSchema, 'Transaction');

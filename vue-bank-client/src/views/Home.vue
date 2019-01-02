@@ -1,18 +1,33 @@
 <template>
   <div class="home">
-    <img alt="Vue logo" src="../assets/logo.png">
-    <HelloWorld msg="Welcome to Your Vue.js App"/>
+    <div v-if="getType === 'CLIENT'">
+      <client/>
+    </div>
+    <div v-else>
+      <staff/>
+    </div>
   </div>
 </template>
 
 <script>
 // @ is an alias to /src
-import HelloWorld from '@/components/HelloWorld.vue'
-
+import Client from '@/views/Client.vue'
+import Staff from '@/views/Staff.vue'
 export default {
   name: 'home',
   components: {
-    HelloWorld
+    Client, Staff
+  },
+  computed:{
+    getType(){
+      return this.$store.getters.userType;
+    }
+  },
+  created(){
+    this.$store.dispatch('getProfile')
+      .catch(error => {
+        
+      });
   }
 }
 </script>

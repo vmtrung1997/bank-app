@@ -4,11 +4,11 @@ const ObjectId = require('mongoose').mongo.ObjectId;
 const md5 = require('md5');
 
 
-const User = require('../models/user'); 
+const User = require('../models/user');
 const ReToken = require('../models/token');
 var auth = require('../repos/authRepo');
 
-router.post('/register', (req, res) =>{
+router.post('/register', (req, res) => {
     var userObject = req.body;
     userObject.password = md5(userObject.password);
     var user = new User(userObject);
@@ -23,22 +23,21 @@ router.post('/register', (req, res) =>{
     })
 })
 
-router.post('/login',(req, res) => {
-    console.log(req.body)
-    User.findOne({username: req.body.username, password: md5(req.body.password)},
-         null, function(error, result){
-            if (result){
-                var userEntity = result;
-                var acToken = auth.generateAccessToken(userEntity);
-                var reToken = auth.generateRefreshToken();
-                auth.updateRefreshToken(result._id, reToken)
+router.post('/login', (req, res) => {
+    User.findOne({ username: req.body.username, password: md5(req.body.password) }, function (error, result) {
+        if (result) {
+            console.log(result);
+            var userEntity = result;
+            var acToken = auth.generateAccessToken(userEntity);
+            var reToken = auth.generateRefreshToken();
+            auth.updateRefreshToken(result._id, reToken)
                 .then(() => {
                     res.statusCode = 201;
                     res.json({
                         status: 'success',
                         user: userEntity,
-                        access_token : acToken,
-                        refresh_token : reToken
+                        access_token: acToken,
+                        refresh_token: reToken
                     })
                 }).catch(err => {
                     res.statusCode = 500;
@@ -47,31 +46,33 @@ router.post('/login',(req, res) => {
                         msg: err
                     })
                 })
-            } else if (error){
-                console.log(error);
-                res.statusCode = 401;
-                res.json({
-                    status: 'fail',
-                    msg: error
-                })
-            }
-        })
+        } else {
+            console.log(result);
+            res.statusCode = 401;
+            res.json({
+                status: 'fail',
+                auth: false
+            })
+        }
+    })
 });
 
-router.post('/getaccess', (req, res) =>{
+router.post('/getaccess', (req, res) => {
     var reToken = req.body.refresh_token;
-    ReToken.findOne({token: reToken}, null, function(err, result){
-        if(result){
+    ReToken.findOne({ token: reToken }, null, function (err, result) {
+        if (result) {
             var id = new ObjectId(result.userid);
-            User.findOne({'_id': id}, function(err, userEntity) {
-                var acToken = auth.generateAccessToken(userEntity);
-                res.statusCode = 201;
-                res.json({
-                    auth: true,
-                    user: userEntity,
-                    access_token : acToken,
-                    refresh_token : reToken
-                })
+            User.findOne({ '_id': id }, function (err, userEntity) {
+                if (userEntity){
+                    var acToken = auth.generateAccessToken(userEntity);
+                    res.statusCode = 201;
+                    res.json({
+                        auth: true,
+                        user: userEntity,
+                        access_token: acToken,
+                        refresh_token: reToken
+                    })
+                }
             })
         } else {
             res.statusCode = 401;
@@ -82,8 +83,8 @@ router.post('/getaccess', (req, res) =>{
 
 router.get('/deleteRefreshToken', (req, res) => {
     var reToken = req.body.refresh_token;
-    ReToken.findOneAndDelete({token: reToken}, null, function(err, result){
-        if (result){
+    ReToken.findOneAndDelete({ token: reToken }, null, function (err, result) {
+        if (result) {
             res.statusCode = 201;
         } else {
             console.log(err);

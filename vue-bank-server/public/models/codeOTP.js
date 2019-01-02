@@ -5,7 +5,7 @@ const codeSchema = new Schema({
     accountId: { type: String, required: true },
     code: { type: String, required: true },
     detail: { type: Object, required: true},
-    createdAt: { type: Date, required: true, default: Date.now, expires: 43200 }
+    createdAt: { type: Date, required: true, default: Date.now, expires: 3600 }
 });
 
 const model = mongoose.model('CodeOTP', codeSchema, 'CodeOTP');
