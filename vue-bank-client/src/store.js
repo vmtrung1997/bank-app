@@ -39,7 +39,10 @@ export default new Vuex.Store({
       return state.contactList;
     },
     getTransListById: (state) => (id) => {
-      return state.transList.filter(trans => trans.accountId === id);
+      return state.transList.filter(trans => trans.accountFrom === id);
+    },
+    getContactByContactNum: (state) => (num) => {
+      return state.contactList.find(con => con.accountNumber === num)
     }
   },
   mutations: {
@@ -68,7 +71,7 @@ export default new Vuex.Store({
       state.refresh_token = null
     },
     destroyProfile(state) {
-      state.profile = null
+      state.profile = {}
     }
   },
   actions: {
@@ -121,20 +124,24 @@ export default new Vuex.Store({
       if (context.getters.loggedIn) {
         return new Promise((resolve, reject) => {
           axios.get('/logout').then(res => {
-            console.log(res);
             if (res.data.status === 'success') {
               localStorage.removeItem('access_token');
               localStorage.removeItem('refresh_token');
 
               context.commit('destroyAccessToken');
-              context.commit('destroyRefreshToken')
-              context.commit('destroyProfile')
+              context.commit('destroyRefreshToken');
+              context.commit('destroyProfile');
               resolve(res.data.status);
             } else {
               reject(res.data.status);
             }
           }).catch(error => {
-            console.log(error)
+              localStorage.removeItem('access_token')
+              localStorage.removeItem('refresh_token');
+
+              context.commit('destroyAccessToken');
+              context.commit('destroyRefreshToken');
+              context.commit('destroyProfile');
             reject(error);
           })
         })
@@ -156,6 +163,7 @@ export default new Vuex.Store({
       return new Promise((resolve, reject) => {
         axios.post('/client/account_list').then(result => {
           if (result.data) {
+            context.commit('retrieveAccountList', result.data.accountList);
             resolve(result.data);
           }
         }).catch(error => reject(error))
@@ -183,7 +191,10 @@ export default new Vuex.Store({
           name: data.name
         }).then(result => {
           if (result.data) {
-            resolve(result.data);
+            {
+              context.commit('retrieveContactList', result.data.contactList);
+              resolve(result.data);
+            }
           }
         }).catch(error => reject(error))
       })
@@ -228,6 +239,85 @@ export default new Vuex.Store({
         axios.post('/staff/users', {username: data}).then(result => {
           if (result.data) {
             resolve(result.data);
+          }
+        }).catch(error => reject(error))
+      })
+    },
+    checkAccount(context, data) {
+      axios.defaults.headers.common['x-access-token'] = context.state.access_token;
+      return new Promise((resolve, reject) => {
+        axios.post('/client/get_account', {accountId: data}).then(result => {
+          if (result.data) {
+            resolve(result.data);
+          }
+        }).catch(error => reject(error))
+      })
+    },
+    transfer(context, data) {
+      axios.defaults.headers.common['x-access-token'] = context.state.access_token;
+      return new Promise((resolve, reject) => {
+        axios.post('/client/transfer', data).then(result => {
+          if (result.data) {
+            resolve(result.data);
+          }
+        }).catch(error => reject(error))
+      })
+    },
+    submitOtp(context, data) {
+      axios.defaults.headers.common['x-access-token'] = context.state.access_token;
+      return new Promise((resolve, reject) => {
+        axios.post('/client/submit_opt', data).then(result => {
+          if (result.data) {
+            resolve(result.data);
+          }
+        }).catch(error => reject(error))
+      })
+    },
+    closeAccount(context, data) {
+      axios.defaults.headers.common['x-access-token'] = context.state.access_token;
+      return new Promise((resolve, reject) => {
+        axios.post('/client/close_account', {accountId: data}).then(result => {
+          if (result.data) {
+            resolve(result.data);
+          }
+        }).catch(error => reject(error))
+      })
+    },
+    updateContact(context, data) {
+      axios.defaults.headers.common['x-access-token'] = context.state.access_token;
+      return new Promise((resolve, reject) => {
+        axios.post('/client/update_contact',data).then(result => {
+          if (result.data) {
+            if (result.data.status === 'success') {
+              context.commit('retrieveContactList', result.data.contactList);
+              resolve(result.data);
+            }
+          }
+        }).catch(error => reject(error))
+      })
+    },
+    deleteContact(context, data) {
+      axios.defaults.headers.common['x-access-token'] = context.state.access_token;
+      return new Promise((resolve, reject) => {
+        axios.post('/client/delete_contact',data).then(result => {
+          if (result.data) {
+            if (result.data.status === 'success') {
+              context.commit('retrieveContactList', result.data.contactList);
+              resolve(result.data);
+            }
+          }
+        }).catch(error => reject(error))
+      })
+    },
+    submitToClose(context, data) {
+      axios.defaults.headers.common['x-access-token'] = context.state.access_token;
+      return new Promise((resolve, reject) => {
+        axios.post('/client/submit_close',data).then(result => {
+          if (result.data) {
+            if (result.data.status === 'success') {
+              context.commit('retrieveAccountList', result.data.accountList);
+              resolve(result.data);
+            }
           }
         }).catch(error => reject(error))
       })

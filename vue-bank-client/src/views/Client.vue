@@ -23,16 +23,16 @@
             <li><a @click="screen='contacts'" :class="screen=='contacts'?'is-active':''">Contacts</a></li>
             <li><a @click="screen='make deposit'" :class="screen=='make deposit'?'is-active':''">Make a deposit</a></li>
             <li><a @click="screen='history'" :class="screen=='history'?'is-active':''">History</a></li>
-            <li><a @click="screen='close account'" :class="screen=='close account'?'is-active':''">Close account</a></li>
+            <!-- <li><a @click="screen='close account'" :class="screen=='close account'?'is-active':''">Close account</a></li> -->
           </ul>
         </aside>
       </div>
-      <div class="column is-7">
+      <div class="column is-8">
           <div v-if="screen=='accounts'"><account/></div>
           <div v-if="screen=='contacts'"><contact/></div>
           <div v-if="screen=='make deposit'"><deposit-form /></div>
-          <div v-if="screen=='history'"></div>
-          <div v-if="screen=='close account'"></div>
+          <div v-if="screen=='history'"><history /></div>
+          <!-- //<div v-if="screen=='close account'"><close-account/></div> -->
       </div>
     </div>
   </div>
@@ -42,10 +42,12 @@
 import account from '@/components/clientComponents/account.vue'
 import contact from '@/components/clientComponents/contact.vue'
 import depositForm from '@/components/clientComponents/depositForm.vue'
+import history from '@/components/clientComponents/history.vue'
+//import closeAccount from '@/components/clientComponents/closeAccount.vue'
 export default {
   name: "client",
   components: {
-    account,depositForm,contact
+    account,depositForm,contact,history,//closeAccount
   },
   data() {
     return {

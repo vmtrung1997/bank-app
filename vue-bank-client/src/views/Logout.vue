@@ -11,7 +11,7 @@ export default {
       if (response === "success") {
         self.$router.push({ name: 'login' });
       }
-    });
+    }).catch(() => {self.$router.push({ name: 'login' });});
   }
 };
 </script>

@@ -13,9 +13,10 @@ exports.getAccountList = (userId) => {
     })})
 }
 
-exports.getTransactionList = (userId) => {
+exports.getTransactionList = (accounts) => {
     return new Promise((resolve,reject) => {
-        Transaction.find({userId: userId}, (error, transList)=>{
+        var list = accounts.map(x => x.accountId);
+        Transaction.find({ accountFrom: { $in: list} }, (error, transList)=>{
         if (transList){
             resolve(transList)
         } else {

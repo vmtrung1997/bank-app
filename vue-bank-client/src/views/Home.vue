@@ -25,9 +25,6 @@ export default {
   },
   created(){
     this.$store.dispatch('getProfile')
-      .catch(error => {
-        
-      });
   }
 }
 </script>
